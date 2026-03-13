@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Job Listings</title>
+
+    <!-- Vue 3 CDN -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Axios CDN -->
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #f4f6f9; margin: 0; padding: 20px; }
+        .container { max-width: 750px; margin: 0 auto; }
+        h1 { text-align: center; color: #2c3e50; margin-bottom: 24px; }
+
+        .search-row { display: flex; gap: 8px; margin-bottom: 24px; }
+        .search-row input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 6px; }
+
+        button {
+          padding: 10px 18px; background: #3498db; color: white;
+          border: none; border-radius: 6px; cursor: pointer;
+        }
+        button:hover { background: #2980b9; }
+        button.secondary { background: #95a5a6; }
+        button.secondary:hover { background: #7f8c8d; }
+
+        .card {
+          background: #fff; border: 1px solid #e0e0e0;
+          border-radius: 10px; padding: 16px; margin-bottom: 16px;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+        }
+        .form-card input {
+          display: block; width: 100%; padding: 10px;
+          margin-bottom: 10px; border: 1px solid #ccc; border-radius: 6px;
+        }
+        .form-card button { width: 100%; margin-top: 4px; }
+        .success { color: green; margin-top: 8px; font-weight: bold; }
+
+        h3 { margin: 0 0 6px; color: #2c3e50; }
+        .badge {
+          display: inline-block; background: #e8f4fd;
+          color: #2980b9; padding: 3px 10px;
+          border-radius: 20px; font-size: 13px; margin-bottom: 8px;
+        }
+        .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+        .tag {
+          background: #f0f0f0; color: #555;
+          padding: 3px 10px; border-radius: 20px; font-size: 12px;
+        }
+        .loading, .no-data { text-align: center; color: #888; margin-top: 40px; }
+        .error { color: red; text-align: center; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <div class="container">
+        <h1>🧑‍💼 Job Listings</h1>
+
+        <!-- Search Bar -->
+        <div class="search-row">
+            <input v-model="searchText" placeholder="Search jobs..." @keyup.enter="search" />
+            <button @click="search">Search</button>
+            <button class="secondary" @click="loadAll">Show All</button>
+        </div>
+
+        <!-- Add Post Form -->
+        <div class="card form-card">
+            <h2>Post a Job</h2>
+            <input v-model="form.profile" placeholder="Job Profile (e.g. Java Developer)" />
+            <input v-model="form.desc" placeholder="Description" />
+            <input v-model="form.exp" type="number" placeholder="Experience (years)" />
+            <input v-model="form.techs" placeholder="Tech Stack (comma separated e.g. Java,Spring)" />
+            <button @click="submitPost">➕ Add Post</button>
+            <p class="success" v-if="successMsg">{{ successMsg }}</p>
+            <p class="error" v-if="errorMsg">{{ errorMsg }}</p>
+        </div>
+
+        <!-- Loading -->
+        <div v-if="loading" class="loading">Loading...</div>
+
+        <!-- Posts -->
+        <div v-else>
+            <p v-if="posts.length === 0" class="no-data">No posts found.</p>
+            <div class="card" v-for="post in posts" :key="post.id">
+                <h3>{{ post.profile }}</h3>
+                <p>{{ post.desc }}</p>
+                <span class="badge">{{ post.exp }} yrs exp</span>
+                <div class="tags">
+                    <span class="tag" v-for="tech in post.techs" :key="tech">{{ tech }}</span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    const { createApp, ref, onMounted } = Vue
+
+    const BASE_URL = 'http://localhost:8080'
+
+    createApp({
+      setup() {
+        const posts = ref([])
+        const searchText = ref('')
+        const loading = ref(false)
+        const successMsg = ref('')
+        const errorMsg = ref('')
+
+        const form = ref({
+          profile: '',
+          desc: '',
+          exp: '',
+          techs: ''
+        })
+
+        // GET /allPosts
+        const loadAll = async () => {
+          loading.value = true
+          errorMsg.value = ''
+          try {
+            const res = await axios.get(`${BASE_URL}/allPosts`)
+            posts.value = res.data
+          } catch (e) {
+            errorMsg.value = 'Failed to load posts. Is Spring Boot running?'
+          }
+          loading.value = false
+        }
+
+        // GET /posts/{text}
+        const search = async () => {
+          if (!searchText.value.trim()) return loadAll()
+          loading.value = true
+          errorMsg.value = ''
+          try {
+            const res = await axios.get(`${BASE_URL}/posts/${searchText.value.trim()}`)
+            posts.value = res.data
+          } catch (e) {
+            errorMsg.value = 'Search failed.'
+          }
+          loading.value = false
+        }
+
+        // POST /post
+        const submitPost = async () => {
+          if (!form.value.profile.trim()) {
+            errorMsg.value = 'Job Profile is required.'
+            return
+          }
+          errorMsg.value = ''
+          const payload = {
+            profile: form.value.profile,
+            desc: form.value.desc,
+            exp: Number(form.value.exp),
+            techs: form.value.techs.split(',').map(t => t.trim())
+          }
+          try {
+            await axios.post(`${BASE_URL}/post`, payload)
+            successMsg.value = '✅ Job posted successfully!'
+            form.value = { profile: '', desc: '', exp: '', techs: '' }
+            setTimeout(() => (successMsg.value = ''), 3000)
+            loadAll()
+          } catch (e) {
+            errorMsg.value = 'Failed to add post.'
+          }
+        }
+
+        onMounted(loadAll)
+
+        return { posts, searchText, loading, successMsg, errorMsg, form, loadAll, search, submitPost }
+      }
+    }).mount('#app')
+</script>
+
+</body>
+</html>
