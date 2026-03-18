@@ -85,8 +85,3 @@ http://localhost:8080
 
 **Madhan Prem**
 
----
-
-## 📄 License
-
-For learning purposes.
